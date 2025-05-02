@@ -5,7 +5,6 @@ from flask import Flask, request, render_template, send_from_directory
 from pypdf import PdfReader
 from docx import Document
 import pandas as pd
-from transformers import pipeline
 import logging
 from functools import lru_cache
 
@@ -14,7 +13,6 @@ app = Flask(__name__)
 ARCHIVO_ORDENES = "ordenes.json"
 ARCHIVO_CONTEXTO = "contexto_pdf.txt"
 IP_PUBLICA = "179.60.137.163"
-PORT = 5000
 
 # Configurar logging
 logging.basicConfig(level=logging.DEBUG)
@@ -22,9 +20,6 @@ logging.basicConfig(level=logging.DEBUG)
 # Cache para el contexto
 app.config['CONTEXTO_CACHE'] = None
 app.config['ULTIMA_MODIFICACION'] = 0
-
-# Inicializar modelo de IA gratuito optimizado para español
-qa_pipeline = pipeline("question-answering", model="deepset/minilm-uncased-squad2")
 
 # Mapa de carreras a valores en la columna CARRERA del archivo HORARIOS.xlsx
 HORARIOS_MAP = {
@@ -90,7 +85,7 @@ MALLAS_CARRERAS = {
     "ingeniería química": "MALLA CARRERA DE INGENIERÍA QUÍMICA.pdf"
 }
 
-# Mapa de materias a PDFs de sílabos (basado en la captura)
+# Mapa de materias a PDFs de sílabos
 MATERIAS_SILABOS = {
     "álgebra lineal": "ÁLGEBRA LINEAL.pdf",
     "cálculo diferencial": "CÁLCULO DIFERENCIAL.pdf",
@@ -414,27 +409,25 @@ def consultar_ia(mensaje, contenido_pdf):
     if not contexto_completo.strip():
         return "No hay contenido de documentos cargado ni información disponible para responder tu pregunta. Asegúrate de que haya PDFs cargados o menciona una carrera válida."
 
-    try:
-        resultado = qa_pipeline({"question": mensaje, "context": contexto_completo[:10000]})
-        respuesta = resultado["answer"]
-        logging.debug(f"Respuesta del modelo de IA: {respuesta}")
+    # Buscar palabras clave en el contexto
+    mensaje_lower = mensaje.lower()
+    if "duración" in mensaje_lower:
+        match = re.search(r"Duración:\s*(\d+\s*semestres)", contexto_completo, re.IGNORECASE)
+        if match:
+            return match.group(1)
+    elif "título" in mensaje_lower:
+        match = re.search(r"Título:\s*([^\n<]+)", contexto_completo, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+    elif "director" in mensaje_lower:
+        match = re.search(r"Director\(a\) de la Carrera:\s*([^\n<]+)", contexto_completo, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
 
-        if respuesta and len(respuesta) > 5 and respuesta.lower() not in ["perfil de la carrera", "descripción de la carrera"]:
-            return respuesta
-
-        if carrera_mencionada and carrera_mencionada in DESCRIPCIONES_CARRERAS:
-            if "título" in mensaje.lower():
-                return extraer_titulo(DESCRIPCIONES_CARRERAS[carrera_mencionada])
-            return "Por favor, especifica qué información deseas sobre la carrera (por ejemplo, título, duración, descripción)."
-        return "No pude encontrar una respuesta útil. Intenta reformular tu pregunta o asegúrate de que los documentos cargados tengan la información necesaria."
-
-    except Exception as e:
-        logging.error(f"Error al consultar IA: {e}")
-        if carrera_mencionada and carrera_mencionada in DESCRIPCIONES_CARRERAS:
-            if "título" in mensaje.lower():
-                return extraer_titulo(DESCRIPCIONES_CARRERAS[carrera_mencionada])
-            return "Por favor, especifica qué información deseas sobre la carrera (por ejemplo, título, duración, descripción)."
-        return "No se pudo procesar tu pregunta. Asegúrate de que los documentos cargados sean legibles y contengan la información necesaria."
+    # Si no encuentra una respuesta específica, devuelve un mensaje genérico
+    if carrera_mencionada and carrera_mencionada in DESCRIPCIONES_CARRERAS:
+        return "Por favor, especifica qué información deseas sobre la carrera (por ejemplo, título, duración, descripción)."
+    return "No pude encontrar una respuesta útil. Intenta reformular tu pregunta o asegúrate de que los documentos cargados tengan la información necesaria."
 
 @app.route("/", methods=["GET", "POST"])
 def chatbot_web():
@@ -685,4 +678,4 @@ def serve_uploaded_file(filename):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"Chat_Boot_IQ está corriendo en http://{IP_PUBLICA}:{port}")
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=False)
