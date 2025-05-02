@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat_boot_IQ</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #343541;
+            color: #d1d5db;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .header {
+            background-color: #202123;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .header img {
+            height: 40px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            color: #ffffff;
+        }
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .message {
+            max-width: 70%;
+            padding: 10px 15px;
+            border-radius: 5px;
+            background-color: #444654;
+            word-wrap: break-word;
+        }
+        .input-area {
+            padding: 20px;
+            background-color: #40414f;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        textarea {
+            width: 100%;
+            max-width: 800px;
+            padding: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            background-color: #565869;
+            color: #d1d5db;
+            resize: none;
+            margin: 0 auto;
+        }
+        .button-area {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        input[type="submit"], button {
+            padding: 10px 20px;
+            background-color: #10a37f;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        input[type="submit"]:hover, button:hover {
+            background-color: #0d8c6b;
+        }
+        input[type="file"] {
+            color: #d1d5db;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="/static/logo.png" alt="Logo">
+        <h1>Chat_boot_IQ</h1>
+    </div>
+    <div class="chat-container">
+        {% if respuesta %}
+            <div class="message">{{ respuesta | safe }}</div>
+        {% endif %}
+    </div>
+    <div class="input-area">
+        <form method="POST" enctype="multipart/form-data">
+            <textarea name="mensaje" placeholder="Escribe tu mensaje..." rows="2"></textarea>
+            <div class="button-area">
+                <input type="submit" value="Enviar">
+                <input type="file" name="pdf" accept=".pdf">
+                <input type="submit" value="Cargar PDF">
+                <button type="submit" name="limpiar" value="limpiar">Limpiar</button>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

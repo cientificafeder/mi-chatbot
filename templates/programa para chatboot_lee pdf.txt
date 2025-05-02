@@ -1,0 +1,138 @@
+import json
+import os
+from flask import Flask, request, render_template
+from pypdf import PdfReader
+from transformers import pipeline
+
+app = Flask(__name__)
+
+# Archivo donde se guardarán las órdenes
+ARCHIVO_ORDENES = "ordenes.json"
+
+# Cargar el modelo de Hugging Face
+qa_pipeline = pipeline("question-answering", model="distilbert-base-uncased-distilled-squad")
+
+# Cargar órdenes existentes o crear un diccionario vacío
+def cargar_ordenes():
+    if os.path.exists(ARCHIVO_ORDENES):
+        with open(ARCHIVO_ORDENES, "r", encoding="utf-8") as archivo:
+            return json.load(archivo)
+    return {"hola": "¡Hola! ¿En qué te ayudo?", "salir": "¡Adiós! Hasta pronto."}
+
+# Guardar las órdenes en el archivo
+def guardar_ordenes(ordenes):
+    try:
+        with open(ARCHIVO_ORDENES, "w", encoding="utf-8") as archivo:
+            json.dump(ordenes, archivo)
+        return True
+    except Exception as e:
+        print(f"Error al guardar órdenes: {e}")
+        return False
+
+# Leer un PDF y extraer texto
+def leer_pdf(ruta_pdf):
+    try:
+        lector = PdfReader(ruta_pdf)
+        texto = ""
+        for pagina in lector.pages:
+            texto_pagina = pagina.extract_text()
+            if texto_pagina:
+                texto += texto_pagina
+        if not texto.strip():
+            return "El PDF está vacío o no contiene texto extraíble."
+        return texto
+    except Exception as e:
+        return f"Error al leer el PDF: {e}"
+
+# Procesar el contenido del PDF y extraer órdenes
+def procesar_pdf(contenido, ordenes):
+    try:
+        lineas = contenido.split("\n")
+        nuevas_ordenes = {}
+        for linea in lineas:
+            linea = linea.strip()
+            if linea:
+                if ":" in linea:
+                    clave, valor = linea.split(":", 1)
+                    nuevas_ordenes[clave.strip().lower()] = valor.strip()
+                else:
+                    clave = linea.split()[0].lower()
+                    valor = linea
+                    nuevas_ordenes[clave] = valor
+        ordenes.update(nuevas_ordenes)
+        return nuevas_ordenes, contenido
+    except Exception as e:
+        return {}, f"Error al procesar el PDF: {e}"
+
+# Consultar el modelo local de IA gratuito
+def consultar_ia_local(mensaje, contenido_pdf=""):
+    if not contenido_pdf:
+        return "No hay contenido de PDF cargado. Sube un PDF primero."
+    try:
+        resultado = qa_pipeline({"question": mensaje, "context": contenido_pdf})
+        return resultado["answer"]
+    except Exception as e:
+        return f"Error al consultar la IA local: {e}"
+
+# Ruta principal de la web
+@app.route("/", methods=["GET", "POST"])
+def chatbot_web():
+    ordenes = cargar_ordenes()
+    respuesta = ""
+    contenido_pdf = ""
+
+    if request.method == "POST":
+        print("POST recibido:", request.files, request.form)  # Depuración
+        if "mensaje" in request.form and request.form["mensaje"]:
+            mensaje = request.form["mensaje"].lower().strip()
+            print(f"Mensaje recibido: {mensaje}")  # Depuración
+            if mensaje == "salir":
+                respuesta = ordenes.get("salir", "Chao!")
+                guardar_ordenes(ordenes)
+            elif mensaje.startswith("enséñame:"):
+                try:
+                    parte = mensaje.replace("enséñame:", "").strip()
+                    orden, resp = parte.split("=", 1)
+                    ordenes[orden.strip()] = resp.strip()
+                    respuesta = f"Entrenado: '{orden}' → '{resp}'"
+                except ValueError:
+                    respuesta = "Usa el formato 'enséñame: orden = respuesta'"
+            elif mensaje in ordenes:
+                respuesta = ordenes[mensaje]
+            else:
+                if os.path.exists("ultimo_pdf.txt"):
+                    with open("ultimo_pdf.txt", "r", encoding="utf-8") as f:
+                        contenido_pdf = f.read()
+                    print(f"Contenido cargado de ultimo_pdf.txt: {contenido_pdf[:100]}...")  # Depuración
+                respuesta = consultar_ia_local(mensaje, contenido_pdf)
+
+        elif "pdf" in request.files:
+            archivo = request.files["pdf"]
+            print(f"Archivo recibido: {archivo.filename}")  # Depuración
+            if archivo and archivo.filename:
+                ruta = os.path.join("uploads", archivo.filename)
+                os.makedirs("uploads", exist_ok=True)
+                archivo.save(ruta)
+                contenido = leer_pdf(ruta)
+                print(f"Contenido extraído del PDF: {contenido[:100]}...")  # Depuración
+                if "Error" not in contenido and contenido.strip():
+                    nuevas_ordenes, contenido_pdf = procesar_pdf(contenido, ordenes)
+                    if nuevas_ordenes:
+                        with open("ultimo_pdf.txt", "w", encoding="utf-8") as f:
+                            f.write(contenido_pdf)
+                        print(f"Guardado en ultimo_pdf.txt: {contenido_pdf[:100]}...")  # Depuración
+                        respuesta = ""  # No mostramos nada en pantalla
+                    else:
+                        respuesta = "No se encontraron datos estructurados en el PDF."
+                else:
+                    respuesta = contenido  # Mostramos error si falla la lectura
+            else:
+                respuesta = "No se seleccionó un archivo PDF válido."
+
+        guardar_ordenes(ordenes)
+
+    return render_template("index.html", respuesta=respuesta)
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)

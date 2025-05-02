@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatBot</title>
+    <style>
+        /* Estilos generales */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: url('{{ url_for('static', filename='background.jpg') }}') no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .chat-container {
+            width: 100%;
+            max-width: 900px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            height: 85vh;
+        }
+
+        /* Encabezado con logo */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 25px;
+        }
+        .header img.logo {
+            width: 50px;
+            height: 50px;
+            margin-right: 15px;
+            transition: transform 0.3s ease;
+        }
+        .header img.logo:hover {
+            transform: scale(1.1);
+        }
+        .header span {
+            font-size: 40px;
+            font-weight: 900;
+            color: #fff;
+            background: linear-gradient(90deg, #1a2a6c, #b21f1f);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease;
+        }
+        .header:hover span {
+            transform: scale(1.05);
+        }
+
+        /* Área de chat más grande */
+        .chat-area {
+            flex-grow: 2;
+            overflow-y: auto;
+            padding: 20px;
+            background: rgba(245, 247, 250, 0.7);
+            border-radius: 15px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(224, 228, 232, 0.8);
+        }
+        .respuesta {
+            background: rgba(255, 255, 255, 0.85);
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            color: #333;
+            font-size: 18px;
+            line-height: 1.6;
+            transition: transform 0.2s ease;
+        }
+        .respuesta:hover {
+            transform: scale(1.02);
+        }
+
+        /* Área de entrada */
+        .input-area {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            flex-shrink: 0;
+        }
+        .upload-form {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            background: #fff;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.05);
+            font-size: 16px;
+            resize: none;
+            transition: box-shadow 0.3s ease;
+        }
+        textarea:focus {
+            outline: none;
+            box-shadow: 0 0 10px rgba(0, 123, 255, 0.5);
+        }
+        /* Placeholder azul transparente */
+        textarea::placeholder {
+            color: rgba(0, 123, 255, 0.7);
+            opacity: 1;
+        }
+        input[type="file"] {
+            font-size: 14px;
+            padding: 10px;
+            background: #fff;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+        }
+
+        /* Botones */
+        button, input[type="submit"] {
+            background: linear-gradient(90deg, #007bff, #00d4ff);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            text-transform: uppercase;
+            transition: transform 0.2s ease, box-shadow 0.3s ease;
+        }
+        button:hover, input[type="submit"]:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 123, 255, 0.4);
+        }
+
+        /* Scrollbar personalizada */
+        .chat-area::-webkit-scrollbar {
+            width: 8px;
+        }
+        .chat-area::-webkit-scrollbar-thumb {
+            background: #007bff;
+            border-radius: 10px;
+        }
+        .chat-area::-webkit-scrollbar-track {
+            background: rgba(233, 236, 239, 0.7);
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="header">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo">
+            <span>ChatBot</span>
+        </div>
+        
+        <!-- Área de chat -->
+        <div class="chat-area">
+            <div class="respuesta">
+                {% if respuesta %}
+                    {{ respuesta }}
+                {% else %}
+                    {% if pdf_cargado %}
+                        PDF cargado. ¡Hazme preguntas!
+                    {% else %}
+                        Carga un PDF para empezar
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Área de entrada -->
+        <div class="input-area">
+            <!-- Formulario para subir PDF -->
+            <form method="post" enctype="multipart/form-data" class="upload-form">
+                <input type="file" name="pdf" accept=".pdf">
+                <input type="submit" value="Cargar PDF">
+            </form>
+
+            <!-- Formulario para mensajes -->
+            <form method="post" id="mensajeForm">
+                <textarea name="mensaje" placeholder="Escribe aquí..."></textarea>
+                <div style="display: flex; gap: 15px; margin-top: 15px;">
+                    <input type="submit" value="Enviar">
+                    <button type="submit" name="limpiar" value="limpiar">Limpiar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Enviar formulario al presionar Enter
+        document.querySelector('textarea[name="mensaje"]').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                document.getElementById('mensajeForm').submit();
+            }
+        });
+    </script>
+</body>
+</html>
